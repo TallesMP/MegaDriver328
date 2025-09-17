@@ -22,17 +22,20 @@ bool isColliding(uint8_t ax, uint8_t ay, uint8_t bx, uint8_t by) {
   return false;
 }
 
-struct Object spawnObstacle(){
+struct Object spawnObstacle(int cycle){
   struct Object obj;
-  uint8_t rand = (uint8_t) random(0,3);
-  obj.x = rand;
+  obj.x = (uint8_t) cycle % 4;
   obj.y = 0;
-  obj.type = "A";
+  obj.type = 'A';
   return obj;
 }
 
 int cycle = 0;
-struct Object obj1 = spawnObstacle();
+struct Object obj1 = spawnObstacle(cycle);
+
+struct Object car = {2,19, 'C'};
+struct Object obstacles[20];
+obstacles[0] = obj1;
 
 void setup() {
   lcd.init();
@@ -40,8 +43,14 @@ void setup() {
 }
 
 void loop() {
+  lcd.clear();
+
+
+  for (int i; i < sizeof(obstacles) / sizeof(obstacles[0]);i++){
+    struct Object obstacle = obstacles[i];
+    drawObject(obstacle.x,obstacle.y++, obstacle.type);
+  }
+  drawObject(car.x,car.y,car.type);
   cycle++;
-  drawObject(obj1.x,obj1.y, obj1.type);
-  drawObject(1,19, 'C');
-  delay(15);
+  delay(1);
 }
