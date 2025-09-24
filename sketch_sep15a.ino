@@ -33,24 +33,36 @@ struct Object spawnObstacle(int cycle){
 int cycle = 0;
 struct Object obj1 = spawnObstacle(cycle);
 
-struct Object car = {2,19, 'C'};
+struct Object car = {1,19, 'C'};
 struct Object obstacles[20];
-obstacles[0] = obj1;
 
 void setup() {
   lcd.init();
   lcd.backlight();
+  obstacles[0] = obj1;
+
 }
 
 void loop() {
   lcd.clear();
 
 
-  for (int i; i < sizeof(obstacles) / sizeof(obstacles[0]);i++){
+  for (int i = 0; i < sizeof(obstacles) / sizeof(obstacles[0]);i++){
     struct Object obstacle = obstacles[i];
-    drawObject(obstacle.x,obstacle.y++, obstacle.type);
+    if (isColliding(car.x, car.y, obstacles[i].x, obstacles[i].y)){
+      drawObject(obstacle.x,obstacle.y-1,obstacle.type);
+      break;
+    }
+    drawObject(obstacle.x,obstacle.y, obstacle.type);
+    if (obstacles[i].y == 19) {
+      obstacles[i].y = 0;
+    }
+    else{
+      obstacles[i].y++;
+    }
+    
   }
   drawObject(car.x,car.y,car.type);
   cycle++;
-  delay(1);
+  delay(200);
 }
