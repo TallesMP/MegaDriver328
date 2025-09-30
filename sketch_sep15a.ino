@@ -1,68 +1,84 @@
 #include <LiquidCrystal_I2C.h>
 
+#define LCD_WIDTH 20
+#define LCD_HEIGHT 4
+#define MAX_OBSTACLES 20
+#define GAME_DELAY 200
+#define SPAWN_CHANCE 10
+
 typedef unsigned char uint8_t;
 typedef signed char int8_t;
-LiquidCrystal_I2C lcd(0x27,20,4);
 
-struct Object {   
-  uint8_t x;           
+LiquidCrystal_I2C lcd(0x27, LCD_WIDTH, LCD_HEIGHT);
+
+struct Object {
+  uint8_t x;
   uint8_t y;
   char type;
 };
 
-void drawObject(uint8_t x, uint8_t y, char object){
-  lcd.setCursor(19 - y, x);
-  lcd.print(object);
+struct Object car = {1, LCD_WIDTH - 1, 'C'};
+struct Object obstacles[MAX_OBSTACLES];
+
+void drawObject(const struct Object& obj) {
+  lcd.setCursor(LCD_WIDTH - 1 - obj.y, obj.x);
+  lcd.print(obj.type);
 }
 
-bool isColliding(uint8_t ax, uint8_t ay, uint8_t bx, uint8_t by) {
-  if (ax == bx && ay == by){
-    return true;
-  }
-  return false;
+bool isColliding(const struct Object& a, const struct Object& b) {
+  return a.x == b.x && a.y == b.y;
 }
 
-struct Object spawnObstacle(int cycle){
+struct Object spawnObstacle() {
   struct Object obj;
-  obj.x = (uint8_t) cycle % 4;
+  obj.x = (uint8_t)random(0, LCD_HEIGHT);
   obj.y = 0;
   obj.type = 'A';
   return obj;
 }
 
-int cycle = 0;
-struct Object obj1 = spawnObstacle(cycle);
+void updateObstacles() {
+  for (int i = 0; i < MAX_OBSTACLES; i++) {
+    if (obstacles[i].type == 0) continue;
 
-struct Object car = {1,19, 'C'};
-struct Object obstacles[20];
+    if (isColliding(car, obstacles[i])) {
+      drawObject(obstacles[i]);
+      return;
+    }
+
+    drawObject(obstacles[i]);
+    if (obstacles[i].y >= LCD_WIDTH - 1) {
+      obstacles[i].type = 0;
+    } else {
+      obstacles[i].y++;
+    }
+  }
+}
+
+void addObstacle() {
+  if (random(100) < SPAWN_CHANCE) {
+    for (int i = 0; i < MAX_OBSTACLES; i++) {
+      if (obstacles[i].type == 0) {
+        obstacles[i] = spawnObstacle();
+        break;
+      }
+    }
+  }
+}
 
 void setup() {
   lcd.init();
   lcd.backlight();
-  obstacles[0] = obj1;
-
+  randomSeed(analogRead(0));
+  obstacles[0] = spawnObstacle();
 }
 
 void loop() {
   lcd.clear();
-
-
-  for (int i = 0; i < sizeof(obstacles) / sizeof(obstacles[0]);i++){
-    struct Object obstacle = obstacles[i];
-    if (isColliding(car.x, car.y, obstacles[i].x, obstacles[i].y)){
-      drawObject(obstacle.x,obstacle.y-1,obstacle.type);
-      break;
-    }
-    drawObject(obstacle.x,obstacle.y, obstacle.type);
-    if (obstacles[i].y == 19) {
-      obstacles[i].y = 0;
-    }
-    else{
-      obstacles[i].y++;
-    }
-    
-  }
-  drawObject(car.x,car.y,car.type);
-  cycle++;
-  delay(200);
+  
+  updateObstacles();
+  drawObject(car);
+  addObstacle();
+  
+  delay(GAME_DELAY);
 }
