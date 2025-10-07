@@ -4,7 +4,10 @@
 #define LCD_HEIGHT 4
 #define MAX_OBSTACLES 20
 #define GAME_DELAY 200
-#define SPAWN_CHANCE 10
+#define SPAWN_CHANCE 20
+
+const int buttonLeftPin = 2;
+const int buttonRightPin = 3;
 
 typedef unsigned char uint8_t;
 typedef signed char int8_t;
@@ -19,6 +22,25 @@ struct Object {
 
 struct Object car = {1, LCD_WIDTH - 1, 'C'};
 struct Object obstacles[MAX_OBSTACLES];
+
+int buttonLeftState = 0;
+int buttonRightState = 0;
+
+
+pinMode(buttonLeftPin, INPUT);
+pinMode(buttonRightPin, INPUT);
+
+void handleButtons() {
+  buttonLeftState = digitalRead(buttonLeftPin);
+  buttonRightState = digitalRead(buttonRightPin);
+  
+  if (buttonLeftState == HIGH && car.x > 0) {
+    car.x--;
+  }
+  else if (buttonRightState == HIGH && car.x < LCD_HEIGHT - 1) {
+    car.x++;
+  }
+}
 
 void drawObject(const struct Object& obj) {
   lcd.setCursor(LCD_WIDTH - 1 - obj.y, obj.x);
@@ -76,6 +98,7 @@ void setup() {
 void loop() {
   lcd.clear();
   
+  handleButtons();
   updateObstacles();
   drawObject(car);
   addObstacle();
