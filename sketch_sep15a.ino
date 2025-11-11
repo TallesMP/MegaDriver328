@@ -3,10 +3,9 @@
 #define LCD_WIDTH 20
 #define LCD_HEIGHT 4
 #define MAX_OBSTACLES 20
-#define GAME_DELAY 200
+#define GAME_DELAY 100
 #define SPAWN_CHANCE 20
 
-// Definição do caractere personalizado
 byte CARacter[] = { 
   B00000, 
   B10001, 
@@ -18,28 +17,50 @@ byte CARacter[] = {
   B00000 
 };
 
+byte plane[] = { 
+  B00000, 
+  B01100, 
+  B01101, 
+  B11111, 
+  B01101, 
+  B01100, 
+  B00000, 
+  B00000 
+};
+byte bomb[] = { B00000, B10101, B01110, B11111, B01110, B10101, B00000, B00000 };
+
+uint8_t blockTick = 0;
+
 const int buttonLeftPin = 2;
 const int buttonRightPin = 4;
 
 typedef unsigned char uint8_t;
-typedef signed char int8_t;
+
+enum ObjectType : byte {
+  OBJ_NONE = 0,
+  OBJ_CAR,
+  OBJ_OBSTACLE_BOMB,
+  OBJ_OBSTACLE_PLANE
+};
+
+typedef struct {
+  uint8_t x;
+  uint8_t y;
+  ObjectType type;
+  uint8_t speed;
+  uint8_t tickCounter;
+} Object;
 
 LiquidCrystal_I2C lcd(0x27, LCD_WIDTH, LCD_HEIGHT);
 
-struct Object {
-  uint8_t x;
-  uint8_t y;
-  byte type;  // Altere para byte, que irá armazenar o índice do caractere personalizado
-};
-
-struct Object car = {1, LCD_WIDTH - 1, 0};  // O índice 0 será o carro, conforme criado com createChar()
-struct Object obstacles[MAX_OBSTACLES];
+Object car = {1, LCD_WIDTH - 1, OBJ_CAR, 0, 0};
+Object obstacles[MAX_OBSTACLES];
 
 int buttonLeftState = 0;
 int buttonRightState = 0;
 bool gameOver = false;
 
-void handleButtons(struct Object *car) {
+void handleButtons(Object *car) {
   buttonLeftState = digitalRead(buttonLeftPin);
   buttonRightState = digitalRead(buttonRightPin);
 
@@ -51,38 +72,75 @@ void handleButtons(struct Object *car) {
   }
 }
 
-void drawObject(const struct Object& obj) {
-  lcd.setCursor(LCD_WIDTH - 1 - obj.y, obj.x);
-  lcd.write(obj.type);  // Exibe o caractere personalizado
-}
-
-bool isColliding(const struct Object& a, const struct Object& b) {
+bool isColliding(const Object& a, const Object& b) {
   return a.x == b.x && a.y == b.y;
 }
 
-struct Object spawnObstacle() {
-  struct Object obj;
+void drawObject(const Object& obj) {
+  lcd.setCursor(LCD_WIDTH - 1 - obj.y, obj.x);
+
+  switch (obj.type) {
+    case OBJ_CAR:
+      lcd.write((byte)0);
+      break;
+    case OBJ_OBSTACLE_BOMB:
+      lcd.write((byte)1);
+      break;
+    case OBJ_OBSTACLE_PLANE:
+      lcd.write((byte)2);
+      break;
+    default:
+      break;
+  }
+}
+
+Object spawnObstacle() {
+  Object obj;
   obj.x = (uint8_t)random(0, LCD_HEIGHT);
   obj.y = 0;
-  obj.type = '#';  // Obstáculo genérico
+  obj.tickCounter = 0;
+
+  if (random(100) < 50) {
+    obj.type = OBJ_OBSTACLE_BOMB;
+    obj.speed = 2;
+  } else {
+    obj.type = OBJ_OBSTACLE_PLANE;
+    obj.speed = 1;
+  }
+
   return obj;
 }
 
-void updateObstacles() {
-  for (int i = 0; i < MAX_OBSTACLES; i++) {
-    if (obstacles[i].type == 0) continue;
 
-    // Verifica colisão
+void updateObstacles() {
+  blockTick++;
+
+  for (int i = 0; i < MAX_OBSTACLES; i++) {
+    if (obstacles[i].type == OBJ_NONE) continue;
+
     if (isColliding(car, obstacles[i])) {
       gameOver = true;
       return;
     }
 
-    // Move obstáculo
-    if (obstacles[i].y >= LCD_WIDTH - 1) {
-      obstacles[i].type = 0;
-    } else {
+    if (obstacles[i].type == OBJ_OBSTACLE_BOMB) {
+      if (blockTick % 2 == 0) {
+        if (obstacles[i].y >= LCD_WIDTH - 1) {
+          obstacles[i].type = OBJ_NONE;
+        } else {
+          obstacles[i].y++;
+        }
+      }
+    } else if (obstacles[i].type == OBJ_OBSTACLE_PLANE) {
       obstacles[i].y++;
+      if (obstacles[i].y >= LCD_WIDTH - 1) {
+        obstacles[i].type = OBJ_NONE;
+      }
+    }
+
+    if (isColliding(car, obstacles[i])) {
+      gameOver = true;
+      return;
     }
   }
 }
@@ -90,7 +148,7 @@ void updateObstacles() {
 void addObstacle() {
   if (random(100) < SPAWN_CHANCE) {
     for (int i = 0; i < MAX_OBSTACLES; i++) {
-      if (obstacles[i].type == 0) {
+      if (obstacles[i].type == OBJ_NONE) {
         obstacles[i] = spawnObstacle();
         break;
       }
@@ -107,7 +165,6 @@ void showStartScreen() {
   lcd.setCursor(6, 3);
   lcd.print("to START");
 
-  // Espera botão
   while (digitalRead(buttonLeftPin) == LOW && digitalRead(buttonRightPin) == LOW) {
     delay(50);
   }
@@ -130,11 +187,13 @@ void setup() {
   pinMode(buttonRightPin, INPUT);
 
   for (int i = 0; i < MAX_OBSTACLES; i++) {
-    obstacles[i].type = 0;
+    obstacles[i].type = OBJ_NONE;
   }
 
-  // Cria o caractere personalizado com o índice 0
   lcd.createChar(0, CARacter);
+  lcd.createChar(1, bomb);
+  lcd.createChar(2, plane);
+
 
   showStartScreen();
 }
@@ -142,7 +201,7 @@ void setup() {
 void loop() {
   if (gameOver) {
     showGameOverScreen();
-    while (true); // trava o jogo aqui pra sempre
+    while (true);
   }
 
   lcd.clear();
@@ -151,10 +210,9 @@ void loop() {
   updateObstacles();
   addObstacle();
 
-  // Desenha tudo
   drawObject(car);
   for (int i = 0; i < MAX_OBSTACLES; i++) {
-    if (obstacles[i].type != 0) drawObject(obstacles[i]);
+    if (obstacles[i].type != OBJ_NONE) drawObject(obstacles[i]);
   }
 
   delay(GAME_DELAY);
